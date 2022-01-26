@@ -7,8 +7,7 @@ const ethers =  require("ethers");
 const GrantDAOABI = require("./utils/GrantDAO.json").abi;
 const MetaCartelABI = require("./utils/MetaCartel.json").abi;
 
-const Provider = new ethers.providers.WebSocketProvider(config.gnosis);
-//const Provider = new ethers.providers.JsonRpcProvider("https://gno.getblock.io/mainnet/?api_key=12823b29-7ee1-4052-80aa-ca19ebb390b6");
+const Provider = new ethers.providers.JsonRpcProvider(config.gnosis);
 //const Provider = new ethers.providers.WebSocketProvider(config.alchemy, "rinkeby")
 
 const Signer = new ethers.Wallet(config.privateKey, Provider);
