@@ -95,9 +95,11 @@ metacartel.on('SubmitProposal', async (
     tribute = Number(tribute) / 10 ** 18
     tributeToken = tributeToken.toLowerCase()
     paymentToken = paymentToken.toLowerCase()
+    details = JSON.parse(details)
     //the listener can fire multiple times for the same emit, so I check if it's already been logged.
     if (loggedProposals.includes(id)) return
-    if(tribute < 10 || chains[tributeToken] !== "wxDAI") return
+    //Make sure Funding Proposals have a tribute
+    if(details.proposalType === "Funding Proposal" && tribute < 10 || chains[tributeToken] !== "wxDAI") return
 
     let server = bot.guilds.cache.get('847216800067485716')
     let proposalChannel = server.channels.cache.find(channel => channel.name === "proposals")
