@@ -99,12 +99,10 @@ metacartel.on('SubmitProposal', async (
     //the listener can fire multiple times for the same emit, so I check if it's already been logged.
     if (loggedProposals.includes(id)) return
     //Make sure Funding Proposals have a tribute
-    if(details.proposalType === "Funding Proposal" && tribute < 10 || chains[tributeToken] !== "wxDAI") return
+    //if(details.proposalType === "Funding Proposal" && tribute < 10 || chains[tributeToken] !== "wxDAI") return
 
     let server = bot.guilds.cache.get('847216800067485716')
     let proposalChannel = server.channels.cache.find(channel => channel.name === "proposals")
-
-    details = JSON.parse(details)
 
     let embed = new MessageEmbed()
         .setTitle(`${details.title}\n[AWAITING SPONSOR]`)
