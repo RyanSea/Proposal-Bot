@@ -1,7 +1,7 @@
 const { Client, Intents, MessageEmbed} =  require('discord.js');
 const bot = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MEMBERS, Intents.FLAGS.GUILD_EMOJIS_AND_STICKERS, Intents.FLAGS.GUILD_MESSAGE_REACTIONS, Intents.FLAGS.DIRECT_MESSAGES, Intents.FLAGS.GUILD_MESSAGES] });
 const config = require('./config/config.json')
-const Styx = config.styx; 
+const Chili = config.chili; 
 
 const ethers =  require("ethers");
 const GrantDAOABI = require("./utils/GrantDAO.json").abi;
@@ -232,7 +232,7 @@ BOT COMMANDS
 ***********/
 
 bot.on('ready', () => {
-    console.log('Styx Has Risen')
+    console.log('Chili Man Has Arrived!')
 })
 
 bot.on('messageCreate', async msg => {
@@ -313,4 +313,4 @@ bot.on('messageCreate', async msg => {
 })
 
 
-bot.login(Styx)
+bot.login(Chili)
