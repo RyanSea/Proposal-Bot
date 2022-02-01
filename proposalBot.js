@@ -269,7 +269,7 @@ bot.on('messageCreate', async msg => {
     
 
     // Generates Embeds For Active Proposals — Run Upon Activation Of Bot
-    if (msg.content.startsWith('!activate')) {
+    if (msg.content.startsWith('!activate chili man')) {
 
         let server = bot.guilds.cache.get('847216800067485716')
         let proposalChannel = server.channels.cache.find(channel => channel.name === "proposals")
