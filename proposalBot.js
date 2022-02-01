@@ -14,10 +14,15 @@ const Signer = new ethers.Wallet(config.privateKey, Provider);
 //const dao = new ethers.Contract('0xd77A681C39387CE629D754A661E7fcD0CA2DBc4d', GrantDAOABI, Signer);
 const metacartel = new ethers.Contract("0xb152B115c94275b54a3F0b08c1Aa1D21f32a659a", MetaCartelABI, Signer)
 
-const chiliURL = "https://emojipedia-us.s3.dualstack.us-west-1.amazonaws.com/thumbs/320/apple/81/hot-pepper_1f336.png"
-const metaChiliURL = "https://images.squarespace-cdn.com/content/v1/5c598e4ebfba3e5984563a0e/1565305053540-E97I3TTHCYHFU0DMW342/meta_chill+copy.png"
-const proposalURL = "https://app.daohaus.club/dao/0x64/0xb152b115c94275b54a3f0b08c1aa1d21f32a659a/proposals/"
-var url = "https://app.daohaus.club/dao/0x64/0xb152b115c94275b54a3f0b08c1aa1d21f32a659a/proposals/"
+
+
+
+var sponsoredProposals = []
+var loggedProposals = []
+
+/************
+DAO VARIABLES
+************/
 
 const chains = {
 
@@ -25,14 +30,17 @@ const chains = {
     "0x6a023ccd1ff6f2045c3309768ead9e68f978f6e1" : "wETH"
 
 }
+const url = "https://app.daohaus.club/dao/0x64/0xb152b115c94275b54a3f0b08c1aa1d21f32a659a/proposals/"
+const chiliMan = "https://images.squarespace-cdn.com/content/v1/5c598e4ebfba3e5984563a0e/1565305053540-E97I3TTHCYHFU0DMW342/meta_chill+copy.png"
+const summoningTime = 1614807080 // MetaCartel Moloch Summoning Time in UNIX Seconds
+const periodDuration = 7200 // 7200 seconds = 2 hours
 
-var sponsoredProposals = []
-var loggedProposals = []
 
 /****************************
 PROPOSAL FORMATTING FUNCTIONS
 ****************************/
 
+//5600 -> 5,600
 function formatNum(num) {
 
     let decimals = "";
@@ -52,6 +60,7 @@ function formatNum(num) {
     return result + decimals
 }
 
+//https://forum.metacartel.com/xyzxyzxyz -> forum.metacartel.com
 function hyperlink(link){
 
     let tldStart, tldEnd, hyperlink, siteStart;
@@ -65,14 +74,89 @@ function hyperlink(link){
 
     return `[${hyperlink}](${link})`
 }
-// hyperlink("https://autocrat.xyz/some_page_this_can_get_very_long_and_not_good_to_look_at") -> "[https://autocrat.xyz](orginallink)"
-// ——————————————————————————————————————
+
+function voteEndingTimestamp(startingPeriod) {
+
+    startingPeriod = Number(startingPeriod)
+    if(!startingPeriod) return
+    let startingSeconds = startingPeriod * periodDuration + summoningTime
+    let ending = new Date(startingSeconds * 1000)
+
+    ending.setHours(ending.getHours() + 24 * 7)
+    ending = ending[Symbol.toPrimitive]('number')
+    ending = Math.floor(ending / 1000)
+
+    return `<t:${ending}>`
+}
+
+async function createEmbed(id) {
+
+    let proposal = await metacartel.proposals(id)
+    let details = JSON.parse(proposal.details)
+    let yes = Number(proposal.yesVotes)
+    let no = Number(proposal.noVotes)
+    let payment = chains[proposal.paymentToken.toLowerCase()]
+    let voteEnding = voteEndingTimestamp(proposal.startingPeriod)
+    let description = details.description
+    let type =  details.proposalType ? details.proposalType.toUpperCase() : '\u200b'
+
+    let embed = new MessageEmbed()
+        .setTitle(details.title || '\u200b')
+        .setURL(url + id)
+        .setAuthor({ name: `🌶  ${type}` })
+        .setThumbnail(chiliMan)
+    
+    if (Number(proposal.paymentRequested) > 0) {
+        let num = String(Number(proposal.paymentRequested) / 10 ** 18)
+        num = formatNum(num)
+        embed.addField("Payment Requested:", `${num} ${payment}`, false)
+    }
+
+    if (Number(proposal.sharesRequested) > 0){
+        embed.addField("Shares Requested:", String(proposal.sharesRequested), false)
+    }
+
+    let status, color
+    if(!yes && !no) {
+        [status, color] = ["Awaiting Votes",'#ebeff2']
+    } else {
+        [status, color] = yes > no ? ["Passing!","#137d02"] : ["Failing","#9c0909"];
+    }
+    embed.setColor(color)
+
+    if(voteEnding) {
+        
+        embed.addFields(
+            { name: 'Yes Votes', value: String(yes), inline: true },
+            { name: 'No Votes', value: String(no), inline: true }
+        )
+
+    } else {
+        status = "Awaiting Sponsor"
+    }
+
+    embed.addField("Status:", status, false)
+    if (description) {
+        if(description.length > 1024) description = description.slice(0,1020) + "..."
+        embed.addField('Description:', description, false)
+    }
+    if (details.link && details.link.replace(/\s/g, '') && details.link.length < 1024) {
+        embed.addField("Link:", hyperlink("https://" + details.link), false)
+    }
+    if(voteEnding) {
+        embed.addField(`Voting Period Ends: ${voteEnding}`,'\u200b' , false )
+    }
+
+    return embed
+}
+
 
 
 /*****************
 PROPOSAL LISTENERS
 *****************/
 
+//TODO? Filter for a minimum tribute on certain proposal types?
 // Generates Embed On SubmitProposal Emit
 metacartel.on('SubmitProposal', async (
     applicant, 
@@ -87,65 +171,32 @@ metacartel.on('SubmitProposal', async (
     id) => 
 {
 
-    // let server = bot.guilds.cache.get('847216800067485716')
-    // let proposalChannel = server.channels.cache.find(channel => channel.name === "proposals")
-    // await proposalChannel.send("Proposal Submitted")
-
     id = String(id)
-    tribute = Number(tribute) / 10 ** 18
-    tributeToken = tributeToken.toLowerCase()
-    paymentToken = paymentToken.toLowerCase()
-    details = JSON.parse(details)
-    //the listener can fire multiple times for the same emit, so I check if it's already been logged.
     if (loggedProposals.includes(id)) return
-    //Make sure Funding Proposals have a tribute
-    //if(details.proposalType === "Funding Proposal" && tribute < 10 || chains[tributeToken] !== "wxDAI") return
-
+    loggedProposals.push(id)
     let server = bot.guilds.cache.get('847216800067485716')
     let proposalChannel = server.channels.cache.find(channel => channel.name === "proposals")
 
-    let embed = new MessageEmbed()
-        .setTitle(`${details.title}\n[AWAITING SPONSOR]`)
-        .setURL(url + id)
-        .setAuthor({ name: `🌶  ${details.proposalType.toUpperCase()}` })
-        .setDescription(details.description)
-        .setThumbnail(metaChiliURL)
-        .setImage(metaChiliURL)
-        .setColor('#E6EAEA')
-        //.setFooter({ text: '🌶  Voting Period Not Yet Started' });
-            
-    if (details.link && details.link.replace(/\s/g, '')) {
-        embed.addField("Link:", hyperlink("https://" + details.link), false)
-    }
-    
-    if (Number(payment) > 0) {
-        let num = String(Number(payment) / 10 ** 18)
-        num = formatNum(num)
-        embed.addField("Payment Requested:", `${num} ${chains[paymentToken]}`, false)
-    }
+    let embed = await createEmbed(id)
 
-    if (Number(shares) > 0){
-        embed.addField("Shares Requested:", String(shares), false)
-    }
-
-    await proposalChannel.send({embeds : [embed]})
-    loggedProposals.push(id)
-    
+    await proposalChannel.send({embeds : [embed] })
 })
 
 // Adds Voting Fields On SponsorProposal Emit
 metacartel.on('SponsorProposal', async (
     delegateKey, 
     member, 
-    id) => 
+    id,
+    idx,
+    startingPeriod) => 
 {
 
     id = String(id)
     if(sponsoredProposals.includes(id)) return
+    sponsoredProposals.push(id)
+    loggedProposals = loggedProposals.filter(prop => prop !== id)
 
-
-
-    let proposal, embed, header
+    let proposal, embed
     let server = bot.guilds.cache.get('847216800067485716')
     let proposalChannel = server.channels.cache.find(channel => channel.name === "proposals")
 
@@ -155,61 +206,40 @@ metacartel.on('SponsorProposal', async (
                 proposal = message
             }
         }))
-    if (!proposal) return // TODO: Generate a Discord Embed
-    embed = proposal.embeds[0]
-    header = embed.title
-    
-    embed
-        .setTitle(header.slice(0, header.indexOf('\n')))
-        .addFields(
-            {name: "Yes Votes", value: "0", inline: true},
-            {name: "No Votes", value: "0", inline: true}
-        )
-    
-    await proposal.edit({embeds: [embed]})
-    loggedProposals = loggedProposals.filter(prop => prop !== id)
-    sponsoredProposals.push(id)
+    embed = await createEmbed(id)
+
+    if (!proposal) {
+        await proposalChannel.send({embeds: [embed] })
+    } else {
+        await proposal.edit({embeds: [embed] })
+    }
 })
 
 // Updates Voting Fields On SubmitVote Emit
 metacartel.on('SubmitVote', async id => {
 
-    let proposal, proposalMessage, embed, yes, no
+    
     id = String(id)
-
+    let proposal, embed
     let server = bot.guilds.cache.get('847216800067485716')
     let proposalChannel = server.channels.cache.find(channel => channel.name === "proposals")
 
     await proposalChannel.messages.fetch()
         .then(messages => messages.forEach(message => {
             if (message.embeds.length && message.embeds[0].url.slice(87) === id) {
-                proposalMessage = message
+                proposal = message
             }
         }))
-    
-    embed = proposalMessage.embeds[0]
-    proposal = await metacartel.proposals(id)
-    console.log(Number(proposal.paymentRequested) / 10 ** 18)
-    yes = String(proposal.yesVotes)
-    no = String(proposal.noVotes)
+    embed = await createEmbed(id)
 
-    embed.fields.forEach(field => {
-        if (field.name === "Yes Votes"){
-            field.value = yes
-        } else if (field.name === "No Votes") {
-            field.value = no
-        }
-    })
-
-    if (Number(yes) > Number(no)){
-        embed.setColor("#27B90A") // Green
+    if (!proposal){
+        await proposalChannel.send({embeds: [embed]})
     } else {
-        embed.setColor("#CA031C") // Red
+        await proposal.edit({embeds : [embed]})
     }
-    
-    await proposalMessage.edit({embeds : [embed]})
 })
 
+//Removes proposal
 metacartel.on('ProcessProposal', async (index, id) => {
 
     let proposal
@@ -221,9 +251,9 @@ metacartel.on('ProcessProposal', async (index, id) => {
                 proposal = message
             }
         }))
-    
-
-    await proposal.delete()
+    if (proposal){
+        await proposal.delete()
+    }
     sponsoredProposals = sponsoredProposals.filter(prop => prop !== id)
 })
 
@@ -236,75 +266,23 @@ bot.on('ready', () => {
 })
 
 bot.on('messageCreate', async msg => {
-
-    let proposals, currentPeriod, ids
-    let proposalChannel = msg.guild.channels.cache.find(channel => channel.name === "proposals")
-
-
-    if (msg.content.startsWith('x')) {
-        let sentience = bot.guilds.cache.get('847216800067485716')
-        let propsalChnnael = sentience.channels.cache.find(channel => channel.name === "proposals")
-        propsalChnnael.send("Test")
-    }
-
+    
 
     // Generates Embeds For Active Proposals — Run Upon Activation Of Bot
-    if (msg.content.startsWith('!on')) {
+    if (msg.content.startsWith('!activate')) {
 
+        let server = bot.guilds.cache.get('847216800067485716')
+        let proposalChannel = server.channels.cache.find(channel => channel.name === "proposals")
+        let currentPeriod = String(await metacartel.getCurrentPeriod())
+        let proposals = await metacartel.queryFilter('SponsorProposal')
         
-
-        currentPeriod = String(await metacartel.getCurrentPeriod())
-        proposals = await metacartel.queryFilter('SponsorProposal')
-        
-        ids = proposals
-            .filter(prop => Number(String(prop.args.startingPeriod)) + 84 + 60 > Number(currentPeriod))
+        let ids = proposals
+            .filter(prop => Number(String(prop.args.startingPeriod)) + 84 > Number(currentPeriod))
             .map(prop => String(prop.args.proposalId))
 
-        proposals = await Promise.all(ids.map(prop => {
-            return metacartel.proposals(prop).then(i => i)
-        }))
-
-        proposals.forEach(async (proposal, index) => {
-
-            let details = JSON.parse(proposal.details)
-            let yes = String(proposal.yesVotes)
-            let no = String(proposal.noVotes)
-            let payment = chains[proposal.paymentToken.toLowerCase()]
+        ids.forEach(async (id) => {
         
-
-            let embed = new MessageEmbed()
-                .setTitle(details.title)
-                .setURL(url + ids[index])
-                .setAuthor({ name: `🌶  ${details.proposalType.toUpperCase()}` })
-                .setDescription(details.description)
-                .setThumbnail(metaChiliURL)
-                .setImage(metaChiliURL)
-                //.setFooter({ text: '🌶  Voting ends in x amount of days' });
-            
-            if (details.link && details.link.replace(/\s/g, '')) {
-                embed.addField("Link:", hyperlink("https://" + details.link), false)
-            }
-            
-            if (Number(proposal.paymentRequested) > 0) {
-                let num = String(Number(proposal.paymentRequested) / 10 ** 18)
-                num = formatNum(num)
-                embed.addField("Payment Requested:", `${num} ${payment}`, false)
-            }
-
-            if (Number(proposal.sharesRequested) > 0){
-                embed.addField("Shares Requested:", String(proposal.sharesRequested), false)
-            }
-
-            embed.addFields(
-                { name: 'Yes Votes', value: yes, inline: true },
-                { name: 'No Votes', value: no, inline: true }
-            )
-            
-            if (Number(yes) > Number(no)){
-                embed.setColor("#27B90A")
-            } else {
-                embed.setColor("#CA031C")
-            }
+            let embed = await createEmbed(id)
 
             await proposalChannel.send({ embeds: [embed] })
         })
