@@ -1,5 +1,5 @@
 const { Client, Intents, MessageEmbed} =  require('discord.js');
-const bot = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MEMBERS, Intents.FLAGS.GUILD_EMOJIS_AND_STICKERS, Intents.FLAGS.GUILD_MESSAGE_REACTIONS, Intents.FLAGS.DIRECT_MESSAGES, Intents.FLAGS.GUILD_MESSAGES] });
+const bot = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGE_REACTIONS, Intents.FLAGS.DIRECT_MESSAGES, Intents.FLAGS.GUILD_MESSAGES] });
 const config = require('./config/config.json')
 const Chili = config.chili; 
 
@@ -40,7 +40,7 @@ const periodDuration = 7200 // 7200 seconds = 2 hours
 PROPOSAL FORMATTING FUNCTIONS
 ****************************/
 
-//5600 -> 5,600
+//50600 -> 50,600
 function formatNum(num) {
 
     let decimals = "";
@@ -75,6 +75,7 @@ function hyperlink(link){
     return `[${hyperlink}](${link})`
 }
 
+//@param: DAOHaus startingPeriod, i.e. periods since summoning time
 function voteEndingTimestamp(startingPeriod) {
 
     startingPeriod = Number(startingPeriod)
@@ -279,10 +280,22 @@ bot.on('messageCreate', async msg => {
         let ids = proposals
             .filter(prop => Number(String(prop.args.startingPeriod)) + 84 > Number(currentPeriod))
             .map(prop => String(prop.args.proposalId))
+        let currentProposals = {}
 
+        let embedId
+        await proposalChannel.messages.fetch()
+        .then(messages => messages.forEach(async message => {
+            if (message.embeds.length) {
+                embedId = message.embeds[0].url.slice(87)
+                if(embedId){
+                    await message.delete()
+                }
+            }
+        }))
+
+        let embed
         ids.forEach(async (id) => {
-        
-            let embed = await createEmbed(id)
+            embed = await createEmbed(id)
 
             await proposalChannel.send({ embeds: [embed] })
         })
