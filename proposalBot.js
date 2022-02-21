@@ -7,15 +7,16 @@ const ethers =  require("ethers");
 const GrantDAOABI = require("./utils/GrantDAO.json").abi;
 const MetaCartelABI = require("./utils/MetaCartel.json").abi;
 
+//using Ankr Node API
 const Provider = new ethers.providers.JsonRpcProvider(config.gnosis);
-//const Provider = new ethers.providers.WebSocketProvider(config.alchemy, "rinkeby")
-
 const Signer = new ethers.Wallet(config.privateKey, Provider);
 //const dao = new ethers.Contract('0xd77A681C39387CE629D754A661E7fcD0CA2DBc4d', GrantDAOABI, Signer);
 const metacartel = new ethers.Contract("0xb152B115c94275b54a3F0b08c1Aa1D21f32a659a", MetaCartelABI, Signer)
 
-
-
+//using GetBlocks Node API
+const provider = new ethers.providers.JsonRpcBatchProvider(config.gnosisGB)
+const signer = new ethers.Wallet(config.privateKey, provider)
+const metacartelGB = new ethers.Contract("0xb152B115c94275b54a3F0b08c1Aa1D21f32a659a", MetaCartelABI, signer)
 
 var sponsoredProposals = []
 var loggedProposals = []
@@ -268,6 +269,9 @@ bot.on('ready', () => {
 
 bot.on('messageCreate', async msg => {
     
+    if (msg.content.startsWith('!test')){
+        msg.channel.send(`${msg.guildId}`)
+    }
 
     // Generates Embeds For Active Proposals — Run Upon Activation Of Bot
     if (msg.content.startsWith('!activate chili man')) {
@@ -275,12 +279,13 @@ bot.on('messageCreate', async msg => {
         let server = bot.guilds.cache.get('847216800067485716')
         let proposalChannel = server.channels.cache.find(channel => channel.name === "proposals")
         let currentPeriod = String(await metacartel.getCurrentPeriod())
-        let proposals = await metacartel.queryFilter('SponsorProposal')
+        let proposals = await metacartelGB.queryFilter('SponsorProposal')
         
         let ids = proposals
             .filter(prop => Number(String(prop.args.startingPeriod)) + 84 > Number(currentPeriod))
             .map(prop => String(prop.args.proposalId))
-        let currentProposals = {}
+        sponsoredProposals = ids
+        console.log(ids)
 
         let embedId
         await proposalChannel.messages.fetch()
